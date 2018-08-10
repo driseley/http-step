@@ -23,7 +23,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -260,8 +259,8 @@ public class HttpWorkflowStepPlugin implements StepPlugin, Describable {
             httpClientBuilder.setSSLContext(sslContextBuilder.build());
         }
         if(options.containsKey("proxySettings") && Boolean.parseBoolean(options.get("proxySettings").toString())){
-        	HttpHost proxy = new HttpHost(options.get("proxyIP").toString(), Integer.valueOf((String)options.get("proxyPort")), "http");
-        	httpClientBuilder.setProxy(proxy);
+            HttpHost proxy = new HttpHost(options.get("proxyIP").toString(), Integer.valueOf((String)options.get("proxyPort")), "http");
+            httpClientBuilder.setProxy(proxy);
         }
 
         return httpClientBuilder.build();
@@ -279,9 +278,13 @@ public class HttpWorkflowStepPlugin implements StepPlugin, Describable {
         if(attempts > MAX_ATTEMPTS) {
             throw new StepException("Unable to complete request after maximum number of attempts.", StepFailureReason.IOFailure);
         }
+        CloseableHttpClient httpClient = null;
         CloseableHttpResponse response = null;
         try {
-            response = this.getHttpClient(options).execute(request);
+            httpClient = getHttpClient(options);
+            //Disable Keep-Alives
+            request.setHeader("Connection", "Close");
+            response = httpClient.execute(request);
 
             //print the response content
             if(options.containsKey("printResponse") && Boolean.parseBoolean(options.get("printResponse").toString()) ||
@@ -393,6 +396,13 @@ public class HttpWorkflowStepPlugin implements StepPlugin, Describable {
             if (response != null) {
                 try {
                     response.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (httpClient != null) {
+                try {
+                    httpClient.close();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
